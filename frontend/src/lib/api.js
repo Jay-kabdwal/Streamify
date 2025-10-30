@@ -63,3 +63,8 @@ export async function getStreamToken() {
   const response = await axiosInstance.get("/chat/token");
   return response.data;
 }
+
+export async function ensureChatUsers(targetUserId) {
+  const response = await axiosInstance.post("/chat/ensure-users", { targetUserId });
+  return response.data;
+}
