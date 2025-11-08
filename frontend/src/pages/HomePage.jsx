@@ -7,7 +7,7 @@ import {
   sendFriendRequest,
 } from "../lib/api";
 import { Link } from "react-router";
-import { CheckCircleIcon, MapPinIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import { CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon, MapPinIcon, UserPlusIcon, UsersIcon } from "lucide-react";
 
 import { capitialize } from "../lib/utils";
 
@@ -17,21 +17,30 @@ import NoFriendsFound from "../components/NoFriendsFound";
 const HomePage = () => {
   const queryClient = useQueryClient();
   const [outgoingRequestsIds, setOutgoingRequestsIds] = useState(new Set());
+  const [friendsPage, setFriendsPage] = useState(1);
+  const [usersPage, setUsersPage] = useState(1);
+  const itemsPerPage = 8;
+  const usersPerPage = 3; // Only 3 recommended users per page
 
-  const { data: friends = [], isLoading: loadingFriends } = useQuery({
-    queryKey: ["friends"],
-    queryFn: getUserFriends,
+  const { data: friendsData, isLoading: loadingFriends } = useQuery({
+    queryKey: ["friends", friendsPage],
+    queryFn: () => getUserFriends(friendsPage, itemsPerPage),
   });
 
-  const { data: recommendedUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ["users"],
-    queryFn: getRecommendedUsers,
+  const { data: usersData, isLoading: loadingUsers } = useQuery({
+    queryKey: ["users", usersPage],
+    queryFn: () => getRecommendedUsers(usersPage, usersPerPage),
   });
 
   const { data: outgoingFriendReqs } = useQuery({
     queryKey: ["outgoingFriendReqs"],
-    queryFn: getOutgoingFriendReqs,
+    queryFn: () => getOutgoingFriendReqs(1, 100), // Get more to track all sent requests
   });
+
+  const friends = friendsData?.friends || [];
+  const friendsPagination = friendsData?.pagination;
+  const recommendedUsers = usersData?.users || [];
+  const usersPagination = usersData?.pagination;
 
   const { mutate: sendRequestMutation, isPending } = useMutation({
     mutationFn: sendFriendRequest,
@@ -40,13 +49,51 @@ const HomePage = () => {
 
   useEffect(() => {
     const outgoingIds = new Set();
-    if (outgoingFriendReqs && outgoingFriendReqs.length > 0) {
-      outgoingFriendReqs.forEach((req) => {
+    if (outgoingFriendReqs?.requests && outgoingFriendReqs.requests.length > 0) {
+      outgoingFriendReqs.requests.forEach((req) => {
         outgoingIds.add(req.recipient._id);
       });
       setOutgoingRequestsIds(outgoingIds);
     }
   }, [outgoingFriendReqs]);
+
+  const renderPagination = (pagination, currentPage, setPage) => {
+    if (!pagination || pagination.totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-6 text-red-900">
+        <button
+          className="btn btn-sm btn-outline text-red-900"
+          onClick={() => setPage(currentPage - 1)}
+          disabled={!pagination.hasPrevPage}
+        >
+          Previous
+          <ChevronLeftIcon className="size-4" />
+        </button>
+
+        <div className="flex items-center gap-2 text-white">
+          {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              className={`btn btn-sm ${page === currentPage ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setPage(page)}
+            >
+              {page}
+            </button>
+          ))}
+        </div>
+
+        <button
+          className="btn btn-sm btn-outline text-red-800"
+          onClick={() => setPage(currentPage + 1)}
+          disabled={!pagination.hasNextPage}
+        >
+          Next
+          <ChevronRightIcon className="size-4" />
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -66,11 +113,14 @@ const HomePage = () => {
         ) : friends.length === 0 ? (
           <NoFriendsFound />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {friends.map((friend) => (
-              <FriendCard key={friend._id} friend={friend} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {friends.map((friend) => (
+                <FriendCard key={friend._id} friend={friend} />
+              ))}
+            </div>
+            {renderPagination(friendsPagination, friendsPage, setFriendsPage)}
+          </>
         )}
 
         <section>
@@ -139,9 +189,8 @@ const HomePage = () => {
 
                       {/* Action button */}
                       <button
-                        className={`btn w-full mt-2 ${
-                          hasRequestBeenSent ? "btn-disabled" : "btn-primary"
-                        } `}
+                        className={`btn w-full mt-2 ${hasRequestBeenSent ? "btn-disabled" : "btn-primary"
+                          } `}
                         onClick={() => sendRequestMutation(user._id)}
                         disabled={hasRequestBeenSent || isPending}
                       >
@@ -163,6 +212,7 @@ const HomePage = () => {
               })}
             </div>
           )}
+          {renderPagination(usersPagination, usersPage, setUsersPage)}
         </section>
       </div>
     </div>

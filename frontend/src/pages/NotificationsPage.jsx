@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { acceptFriendRequest, getFriendRequests } from "../lib/api";
-import { BellIcon, ClockIcon, MessageSquareIcon, UserCheckIcon } from "lucide-react";
+import { BellIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MessageSquareIcon, UserCheckIcon } from "lucide-react";
 import NoNotificationsFound from "../components/NoNotificationsFound";
+import { useState } from "react";
 
 const NotificationsPage = () => {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data: friendRequests, isLoading } = useQuery({
-    queryKey: ["friendRequests"],
-    queryFn: getFriendRequests,
+    queryKey: ["friendRequests", page],
+    queryFn: () => getFriendRequests(page, itemsPerPage),
   });
 
   const { mutate: acceptRequestMutation, isPending } = useMutation({
@@ -19,8 +22,42 @@ const NotificationsPage = () => {
     },
   });
 
-  const incomingRequests = friendRequests?.incomingReqs || [];
-  const acceptedRequests = friendRequests?.acceptedReqs || [];
+  const incomingRequests = friendRequests?.incomingReqs?.requests || [];
+  const incomingPagination = friendRequests?.incomingReqs?.pagination;
+  const acceptedRequests = friendRequests?.acceptedReqs?.requests || [];
+  const acceptedPagination = friendRequests?.acceptedReqs?.pagination;
+
+  const renderPagination = (pagination) => {
+    if (!pagination || pagination.totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-4">
+        <button
+          className="btn btn-sm btn-outline"
+          onClick={() => setPage(page - 1)}
+          disabled={!pagination.hasPrevPage}
+        >
+          <ChevronLeftIcon className="size-4" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+        </div>
+
+        <button
+          className="btn btn-sm btn-outline"
+          onClick={() => setPage(page + 1)}
+          disabled={!pagination.hasNextPage}
+        >
+          Next
+          <ChevronRightIcon className="size-4" />
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -78,6 +115,7 @@ const NotificationsPage = () => {
                     </div>
                   ))}
                 </div>
+                {renderPagination(incomingPagination)}
               </section>
             )}
 
@@ -119,6 +157,7 @@ const NotificationsPage = () => {
                     </div>
                   ))}
                 </div>
+                {renderPagination(acceptedPagination)}
               </section>
             )}
 

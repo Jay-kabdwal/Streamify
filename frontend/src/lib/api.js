@@ -29,18 +29,18 @@ export const completeOnboarding = async (userData) => {
   return response.data;
 };
 
-export async function getUserFriends() {
-  const response = await axiosInstance.get("/users/friends");
+export async function getUserFriends(page = 1, limit = 3) {
+  const response = await axiosInstance.get(`/users/friends?page=${page}&limit=${limit}`);
   return response.data;
 }
 
-export async function getRecommendedUsers() {
-  const response = await axiosInstance.get("/users");
+export async function getRecommendedUsers(page = 1, limit = 3) {
+  const response = await axiosInstance.get(`/users?page=${page}&limit=${limit}`);
   return response.data;
 }
 
-export async function getOutgoingFriendReqs() {
-  const response = await axiosInstance.get("/users/outgoing-friend-requests");
+export async function getOutgoingFriendReqs(page = 1, limit = 10) {
+  const response = await axiosInstance.get(`/users/outgoing-friend-requests?page=${page}&limit=${limit}`);
   return response.data;
 }
 
@@ -49,8 +49,8 @@ export async function sendFriendRequest(userId) {
   return response.data;
 }
 
-export async function getFriendRequests() {
-  const response = await axiosInstance.get("/users/friend-requests");
+export async function getFriendRequests(page = 1, limit = 10) {
+  const response = await axiosInstance.get(`/users/friend-requests?page=${page}&limit=${limit}`);
   return response.data;
 }
 

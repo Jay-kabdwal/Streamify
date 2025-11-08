@@ -66,7 +66,8 @@ const ChatPage = () => {
           members: [authUser._id, targetUserId],
         });
 
-        await currChannel.watch();
+        // Watch channel with message limit
+        await currChannel.watch({ messages: { limit: 5 } });
         console.log("Channel watch successful:", { channelId });
 
         setChatClient(client);
@@ -103,7 +104,7 @@ const ChatPage = () => {
             <CallButton handleVideoCall={handleVideoCall} />
             <Window>
               <ChannelHeader />
-              <MessageList />
+              <MessageList messageLimit={5} />
               <MessageInput focus />
             </Window>
           </div>

@@ -6,14 +6,38 @@ export async function getRecommendedUsers(req, res) {
     const currentUserId = req.user.id;
     const currentUser = req.user;
 
-    const recommendedUsers = await User.find({
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const query = {
       $and: [
         { _id: { $ne: currentUserId } }, //exclude current user
         { _id: { $nin: currentUser.friends } }, // exclude current user's friends
         { isOnboarded: true },
       ],
+    };
+
+    // Get total count for pagination metadata
+    const totalUsers = await User.countDocuments(query);
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    const recommendedUsers = await User.find(query)
+      .skip(skip)
+      .limit(limit)
+      .select("fullName profilePic nativeLanguage learningLanguage location bio");
+
+    res.status(200).json({
+      users: recommendedUsers,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
     });
-    res.status(200).json(recommendedUsers);
   } catch (error) {
     console.error("Error in getRecommendedUsers controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -22,11 +46,42 @@ export async function getRecommendedUsers(req, res) {
 
 export async function getMyFriends(req, res) {
   try {
-    const user = await User.findById(req.user.id)
-      .select("friends")
-      .populate("friends", "fullName profilePic nativeLanguage learningLanguage");
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    res.status(200).json(user.friends);
+    const user = await User.findById(req.user.id).select("friends");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const totalFriends = user.friends.length;
+    const totalPages = Math.ceil(totalFriends / limit);
+
+    // Get paginated friends with populated data
+    const paginatedUser = await User.findById(req.user.id)
+      .select("friends")
+      .populate({
+        path: "friends",
+        select: "fullName profilePic nativeLanguage learningLanguage location bio",
+        options: {
+          skip: skip,
+          limit: limit,
+        },
+      });
+
+    res.status(200).json({
+      friends: paginatedUser.friends,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalFriends,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     console.error("Error in getMyFriends controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -116,17 +171,57 @@ export async function acceptFriendRequest(req, res) {
 
 export async function getFriendRequests(req, res) {
   try {
-    const incomingReqs = await FriendRequest.find({
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get incoming requests with pagination
+    const incomingQuery = {
       recipient: req.user.id,
       status: "pending",
-    }).populate("sender", "fullName profilePic nativeLanguage learningLanguage");
+    };
+    const totalIncoming = await FriendRequest.countDocuments(incomingQuery);
+    const incomingReqs = await FriendRequest.find(incomingQuery)
+      .skip(skip)
+      .limit(limit)
+      .populate("sender", "fullName profilePic nativeLanguage learningLanguage")
+      .sort({ createdAt: -1 });
 
-    const acceptedReqs = await FriendRequest.find({
+    // Get accepted requests with pagination
+    const acceptedQuery = {
       sender: req.user.id,
       status: "accepted",
-    }).populate("recipient", "fullName profilePic");
+    };
+    const totalAccepted = await FriendRequest.countDocuments(acceptedQuery);
+    const acceptedReqs = await FriendRequest.find(acceptedQuery)
+      .skip(skip)
+      .limit(limit)
+      .populate("recipient", "fullName profilePic")
+      .sort({ updatedAt: -1 });
 
-    res.status(200).json({ incomingReqs, acceptedReqs });
+    res.status(200).json({
+      incomingReqs: {
+        requests: incomingReqs,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalIncoming / limit),
+          totalRequests: totalIncoming,
+          hasNextPage: page < Math.ceil(totalIncoming / limit),
+          hasPrevPage: page > 1,
+        },
+      },
+      acceptedReqs: {
+        requests: acceptedReqs,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalAccepted / limit),
+          totalRequests: totalAccepted,
+          hasNextPage: page < Math.ceil(totalAccepted / limit),
+          hasPrevPage: page > 1,
+        },
+      },
+    });
   } catch (error) {
     console.log("Error in getPendingFriendRequests controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -135,12 +230,35 @@ export async function getFriendRequests(req, res) {
 
 export async function getOutgoingFriendReqs(req, res) {
   try {
-    const outgoingRequests = await FriendRequest.find({
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const query = {
       sender: req.user.id,
       status: "pending",
-    }).populate("recipient", "fullName profilePic nativeLanguage learningLanguage");
+    };
 
-    res.status(200).json(outgoingRequests);
+    const totalRequests = await FriendRequest.countDocuments(query);
+    const totalPages = Math.ceil(totalRequests / limit);
+
+    const outgoingRequests = await FriendRequest.find(query)
+      .skip(skip)
+      .limit(limit)
+      .populate("recipient", "fullName profilePic nativeLanguage learningLanguage")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      requests: outgoingRequests,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRequests,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     console.log("Error in getOutgoingFriendReqs controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
